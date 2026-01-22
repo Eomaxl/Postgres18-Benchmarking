@@ -1,0 +1,85 @@
+services:
+  # Primary postgreSQL 18 instance
+  postgres-primary:
+    image: postgres:18
+    container_name: postgres-bench-primary
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: userdb
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-primary-data:/var/lib/postgresql
+      - ./scripts/init-primary.sh:/docker-entrypoint-initdb.d/init-primary.sh
+      - ./scripts/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./scripts/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    networks:
+      - postgres-cluster
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Read Replica 1
+  postgres-replica1:
+    image: postgres:18
+    container_name: postgres-bench-replica1
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-replica1-data:/var/lib/postgresql
+      - ./scripts/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+      - ./scripts/postgresql-replica.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    networks:
+      - postgres-cluster
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Read Replica 2
+  postgres-replica2:
+    image: postgres:18
+    container_name: postgres-bench-replica2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-replica2-data:/var/lib/postgresql
+      - ./scripts/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+      - ./scripts/postgresql-replica.conf:/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    networks:
+      - postgres-cluster
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+networks:
+  postgres-cluster:
+    driver: bridge
+
+volumes:
+  postgres-primary-data:
+  postgres-replica1-data:
+  postgres-replica2-data:
